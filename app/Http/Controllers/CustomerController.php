@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class CustomerController extends Controller
 {
@@ -12,8 +13,8 @@ class CustomerController extends Controller
      */
     public function index()
     {
-       $customers = Customer::all();
-       return view('Admin.index', compact('customers'));
+        $customers = Customer::all();
+        return view('Admin.index', compact('customers'));
     }
 
     /**
@@ -21,7 +22,7 @@ class CustomerController extends Controller
      */
     public function create()
     {
-       return view('Admin.create');
+        return view('Admin.create');
     }
 
     /**
@@ -29,14 +30,29 @@ class CustomerController extends Controller
      */
     public function store(Request $request)
     {
-        $this->validate($request, [
-           'name'=>'required',
-           'phone'=>'required',
-           'address'=>'required',
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string|max:255',
+            'address' => 'required|string|max:255',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'pdf' => 'nullable|mimes:pdf|max:10000',
         ]);
-        $requestData = $request->all();
-        Customer::create($requestData);
-        return redirect()->route('customers.index');
+
+        $data = $request->all();
+
+        if ($request->hasFile('image')) {
+            $imagePath = $request->file('image')->store('images/customers', 'public');
+            $data['image'] = $imagePath;
+        }
+
+        if ($request->hasFile('pdf')) {
+            $pdfPath = $request->file('pdf')->store('files/customers', 'public');
+            $data['pdf'] = $pdfPath;
+        }
+
+        Customer::create($data);
+
+        return redirect()->route('customers.index')->with('success', 'Customer created successfully.');
     }
 
     /**
@@ -44,14 +60,14 @@ class CustomerController extends Controller
      */
     public function show($id)
     {
-        $customers = Customer::find($id);
+        $customers = Customer::findOrFail($id);
         return view('Admin.show', compact('customers'));
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit($customer )
+    public function edit($customer)
     {
         $customers = Customer::find($customer);
         return view('Admin.edit', compact('customers'));
@@ -63,17 +79,42 @@ class CustomerController extends Controller
     public function update(Request $request, $id)
     {
         $this->validate($request, [
-            'name' => 'required',
-            'phone' => 'required',
-            'address' => 'required',
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string|max:255',
+            'address' => 'required|string|max:255',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'pdf' => 'nullable|mimes:pdf|max:10000',
         ]);
-    
+
         $customer = Customer::findOrFail($id);
-        $customer->update($request->all());
-    
-        return redirect()->route('customers.index');
+
+        $customer->update([
+            'name' => $request->input('name'),
+            'phone' => $request->input('phone'),
+            'address' => $request->input('address'),
+        ]);
+
+        if ($request->hasFile('image')) {
+            if ($customer->image) {
+                Storage::disk('public')->delete($customer->image);
+            }
+            $imagePath = $request->file('image')->store('images/customers', 'public');
+            $customer->image = $imagePath;
+            $customer->save();
+        }
+
+        if ($request->hasFile('pdf')) {
+            if ($customer->pdf) {
+                Storage::disk('public')->delete($customer->pdf);
+            }
+            $pdfPath = $request->file('pdf')->store('files/customers', 'public');
+            $customer->pdf = $pdfPath;
+            $customer->save();
+        }
+
+        return redirect()->route('customers.index')->with('success', 'Customer updated successfully.');
     }
-    
+
 
     /**
      * Remove the specified resource from storage.
